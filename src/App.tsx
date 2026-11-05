@@ -39,9 +39,24 @@ import { PacketBuilderModal } from './components/PacketBuilderModal';
 import { LabReportModal } from './components/LabReportModal';
 import { RouterAclModal } from './components/RouterAclModal';
 import { soundFx } from './utils/audioEffects';
-import { Terminal, Network, ShieldCheck, Sparkles, AlertCircle, BarChart3, ExternalLink } from 'lucide-react';
+import { Terminal, Network, ShieldCheck, Sparkles, AlertCircle, BarChart3, ExternalLink, Maximize2, Minimize2, GripHorizontal } from 'lucide-react';
 
 const TRUNK_LINK_ID = 'link-trunk-routers';
+
+// Panel inferior (Terminal / Wireshark / Telemetría): altura redimensionable en % del área de trabajo
+const DOCK_STORAGE_KEY = 'sre.dockPercent';
+const DOCK_DEFAULT_PERCENT = 40;
+const DOCK_MIN_PERCENT = 20;
+const DOCK_MAX_PERCENT = 85;
+const clampDockPercent = (v: number) => Math.min(DOCK_MAX_PERCENT, Math.max(DOCK_MIN_PERCENT, v));
+const readStoredDockPercent = (): number => {
+  try {
+    const v = Number(localStorage.getItem(DOCK_STORAGE_KEY));
+    return Number.isFinite(v) && v > 0 ? clampDockPercent(v) : DOCK_DEFAULT_PERCENT;
+  } catch {
+    return DOCK_DEFAULT_PERCENT;
+  }
+};
 const LOGO_URL = `${import.meta.env.BASE_URL}assets/aistudio/icono_81a3db5b.png`;
 
 // Add or refresh an ARP cache entry
@@ -89,6 +104,60 @@ export default function App() {
 
   // UI Panels & Labs
   const [bottomTab, setBottomTab] = useState<'terminal' | 'wireshark' | 'telemetry'>('terminal');
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [dockPercent, setDockPercent] = useState<number>(readStoredDockPercent);
+  const [isDockMaximized, setIsDockMaximized] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DOCK_STORAGE_KEY, String(Math.round(dockPercent)));
+    } catch {
+      /* almacenamiento no disponible: se ignora */
+    }
+  }, [dockPercent]);
+
+  useEffect(() => {
+    if (!isDockMaximized) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsDockMaximized(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isDockMaximized]);
+
+  const handleSplitterPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const container = workspaceRef.current;
+    if (!container || e.button !== 0) return;
+    e.preventDefault();
+    setIsDockMaximized(false);
+    const rect = container.getBoundingClientRect();
+    const onMove = (ev: PointerEvent) => {
+      setDockPercent(clampDockPercent(((rect.bottom - ev.clientY) / rect.height) * 100));
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const handleSplitterKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setDockPercent((p) => clampDockPercent(p + 5));
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setDockPercent((p) => clampDockPercent(p - 5));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setDockPercent(DOCK_DEFAULT_PERCENT);
+    }
+  };
   const [isLabsModalOpen, setIsLabsModalOpen] = useState<boolean>(false);
   const [completedMissionIds, setCompletedMissionIds] = useState<string[]>([]);
   const [highlightedPacket, setHighlightedPacket] = useState<SimulatedPacket | null>(null);
@@ -1222,9 +1291,12 @@ export default function App() {
       />
 
       {/* 3. Main Workspace: Split View with Canvas on Top, Docked Controls Below */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Top 60%: Interactive SVG Topology Canvas */}
-        <div className="flex-[60] min-h-[290px] p-3">
+      <div ref={workspaceRef} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Top: Interactive SVG Topology Canvas (altura = 100% - panel inferior) */}
+        <div
+          className={`min-h-[160px] px-3 pt-3 ${isDockMaximized ? 'hidden' : ''}`}
+          style={{ flex: `${100 - dockPercent} 1 0%` }}
+        >
           <NetworkTopologyCanvas
             nodes={nodes}
             links={links}
@@ -1244,8 +1316,36 @@ export default function App() {
           />
         </div>
 
-        {/* Bottom 40%: Docked Console, Wireshark & Recharts Telemetry Tabs */}
-        <div className="flex-[40] min-h-[240px] px-3 pb-3 flex flex-col">
+        {/* Splitter: arrastrar para redimensionar, doble clic para restaurar */}
+        {!isDockMaximized && (
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Redimensionar panel inferior"
+            aria-valuemin={DOCK_MIN_PERCENT}
+            aria-valuemax={DOCK_MAX_PERCENT}
+            aria-valuenow={Math.round(dockPercent)}
+            tabIndex={0}
+            title="Arrastra para redimensionar · Doble clic para restaurar"
+            onPointerDown={handleSplitterPointerDown}
+            onDoubleClick={() => setDockPercent(DOCK_DEFAULT_PERCENT)}
+            onKeyDown={handleSplitterKeyDown}
+            className="group shrink-0 h-3 mx-3 flex items-center justify-center cursor-row-resize touch-none outline-none"
+          >
+            <div className="w-full h-px bg-slate-800 group-hover:bg-sky-500/70 group-focus-visible:bg-sky-500 transition-colors relative">
+              <GripHorizontal
+                size={14}
+                className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 top-1/2 text-slate-600 group-hover:text-sky-400 bg-slate-950 px-0.5"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Bottom: Docked Console, Wireshark & Recharts Telemetry Tabs */}
+        <div
+          className={`min-h-[240px] px-3 pb-3 flex flex-col ${isDockMaximized ? 'pt-3' : ''}`}
+          style={{ flex: isDockMaximized ? '1 1 0%' : `${dockPercent} 1 0%` }}
+        >
           {/* Segmented Dock Tabs */}
           <div className="flex items-center justify-between pb-1.5 px-1 shrink-0">
             <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
@@ -1286,12 +1386,23 @@ export default function App() {
               </button>
             </div>
 
-            <button
-              onClick={() => setDetailModalNode(selectedNode)}
-              className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 font-medium px-2 py-1 rounded bg-slate-900 border border-slate-800 transition-colors"
-            >
-              <span>Inspeccionar {selectedNode.name}</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setDetailModalNode(selectedNode)}
+                className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 font-medium px-2 py-1 rounded bg-slate-900 border border-slate-800 transition-colors"
+              >
+                <span>Inspeccionar {selectedNode.name}</span>
+              </button>
+              <button
+                onClick={() => setIsDockMaximized((m) => !m)}
+                className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-sky-300 font-medium px-2 py-1 rounded bg-slate-900 border border-slate-800 transition-colors"
+                title={isDockMaximized ? 'Restaurar panel (Esc)' : 'Maximizar panel'}
+                aria-pressed={isDockMaximized}
+              >
+                {isDockMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                <span className="hidden sm:inline">{isDockMaximized ? 'Restaurar' : 'Maximizar'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Dock Content */}

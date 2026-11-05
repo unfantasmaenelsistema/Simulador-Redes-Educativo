@@ -238,7 +238,7 @@ export const NetworkTelemetryDashboard: React.FC<TelemetryDashboardProps> = ({
   return (
     <div className="flex flex-col h-full bg-slate-950 border border-slate-800 rounded-xl overflow-hidden font-sans text-xs shadow-2xl">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-900 border-b border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-900 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-2">
           <BarChart3 size={15} className="text-sky-400" />
           <span className="font-semibold text-slate-200">Panel de Telemetría y Tráfico en Tiempo Real</span>
@@ -302,6 +302,8 @@ export const NetworkTelemetryDashboard: React.FC<TelemetryDashboardProps> = ({
         </div>
       </div>
 
+      {/* Scrollable body: config panel, alerts, KPIs and charts scroll together */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
       {/* Threshold Configuration Drawer / Panel */}
       {showConfigPanel && (
         <div className="p-4 bg-slate-900/95 border-b border-slate-800 space-y-3 animate-in slide-in-from-top-2">
@@ -471,7 +473,7 @@ export const NetworkTelemetryDashboard: React.FC<TelemetryDashboardProps> = ({
       )}
 
       {/* KPI Cards Row (Highlighted if breached) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-950/60 border-b border-slate-800/80 shrink-0">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-950/60 border-b border-slate-800/80">
         <div
           className={`p-2.5 rounded-lg border transition-all ${
             breaches.aulas
@@ -598,7 +600,7 @@ export const NetworkTelemetryDashboard: React.FC<TelemetryDashboardProps> = ({
       </div>
 
       {/* Main Charts Area */}
-      <div className="flex-1 p-3 overflow-y-auto space-y-3">
+      <div className="p-3 space-y-3">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           {/* Chart 1: Real-time Timeline with Dynamic Threshold Colors and Reference Lines */}
           <div className="lg:col-span-2 p-3 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col h-64">
@@ -952,6 +954,7 @@ export const NetworkTelemetryDashboard: React.FC<TelemetryDashboardProps> = ({
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
